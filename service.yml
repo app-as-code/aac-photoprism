@@ -1,0 +1,167 @@
+service:
+  name: aac-photoprism
+  friendly_name: AI-Fotos
+  image_repo: photoprism/photoprism
+  image_tag: 20220121
+  description: Self-hosted Photo Management
+  icon: photoprism.png
+  category: Medien - Entertainment
+  stage: prod
+  hostname: fotos
+ports:
+- name: web
+  port: 2342
+  external_port: 2342
+  protocol: TCP
+config:
+  domain_name: example.com
+  generate_hostname: false
+  integrations:
+    homepage:
+      enabled: true
+    autodns:
+      enabled: true
+    traefik:
+      enabled: true
+      cert_resolver: ionos
+      entrypoint: websecure
+      service_scheme: https
+      servers_transport: my-insecure-transport@file
+  schema_version: 2
+stage_overrides:
+  prod:
+    config:
+      generate_hostname: false
+    service:
+      hostname: fotos
+secrets:
+  PHOTOPRISM_ADMIN_PASSWORD: CHANGE_ME
+  PHOTOPRISM_DATABASE_PASSWORD: CHANGE_ME
+  HOMEPAGE_WIDGET_PASSWORD: CHANGE_ME
+  MARIADB_ROOT_PASSWORD: CHANGE_ME
+  MARIADB_DATABASE: photoprism
+  MARIADB_USER: photoprism
+  MARIADB_PASSWORD: CHANGE_ME
+volumes:
+  storage:
+    description: Storage for thumbnails, sidecar files, and database backups
+  db:
+    description: Data for database
+  originals:
+    type: bind
+    source: /mnt/homenas/netzlaufwerk-feser/Bibliothek/Bilder/Familien-Galerie
+  import_folder:
+    type: bind
+    source: /mnt/homenas/server/photoprism/import
+deployment_strategy:
+  main:
+    enabled: true
+    target_stage: prod
+  dev:
+    enabled: true
+    target_stage: dev
+  test:
+    enabled: false
+    target_stage: test
+  ansible-dev:
+    enabled: true
+    target_stage: dev
+  iac-dev:
+    enabled: true
+    target_stage: dev
+  template-dev:
+    enabled: true
+    target_stage: dev
+deployments:
+  docker_compose:
+    restart_policy: always
+    host_base_path: /export/docker
+    security_opt:
+    - seccomp:unconfined
+    - apparmor:unconfined
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities:
+            - gpu
+            - compute
+            - compat32
+            - graphics
+            - utility
+            - video
+    volumes:
+    - storage:/photoprism/storage
+    - originals:/photoprism/originals
+    - import_folder:/photoprism/import
+    environment:
+      PHOTOPRISM_DEFAULT_TLS: '{{ vars.PHOTOPRISM_DEFAULT_TLS }}'
+      PHOTOPRISM_AUTH_MODE: '{{ vars.PHOTOPRISM_AUTH_MODE }}'
+      PHOTOPRISM_EXPERIMENTAL: '{{ vars.PHOTOPRISM_EXPERIMENTAL }}'
+      PHOTOPRISM_DATABASE_NAME: '{{ vars.PHOTOPRISM_DATABASE_NAME }}'
+      PHOTOPRISM_DATABASE_SERVER: '{{ vars.PHOTOPRISM_DATABASE_SERVER }}'
+      PHOTOPRISM_ORIGINALS_LIMIT: '{{ vars.PHOTOPRISM_ORIGINALS_LIMIT }}'
+      PHOTOPRISM_FFMPEG_ENCODER: '{{ vars.PHOTOPRISM_FFMPEG_ENCODER }}'
+      PHOTOPRISM_DATABASE_DRIVER: '{{ vars.PHOTOPRISM_DATABASE_DRIVER }}'
+      PUID: '{{ vars.PUID }}'
+      TZ: '{{ vars.TZ }}'
+      PHOTOPRISM_GID: '{{ vars.PHOTOPRISM_GID }}'
+      PHOTOPRISM_DISABLE_TLS: '{{ vars.PHOTOPRISM_DISABLE_TLS }}'
+      PHOTOPRISM_LOG_LEVEL: '{{ vars.PHOTOPRISM_LOG_LEVEL }}'
+      PHOTOPRISM_INIT: '{{ vars.PHOTOPRISM_INIT }}'
+      PHOTOPRISM_READONLY: '{{ vars.PHOTOPRISM_READONLY }}'
+      PHOTOPRISM_DETECT_NSFW: '{{ vars.PHOTOPRISM_DETECT_NSFW }}'
+      PHOTOPRISM_ADMIN_USER: '{{ vars.PHOTOPRISM_ADMIN_USER }}'
+      PHOTOPRISM_SITE_URL: '{{ vars.PHOTOPRISM_SITE_URL }}'
+      PHOTOPRISM_UMASK: '{{ vars.PHOTOPRISM_UMASK }}'
+      PGID: '{{ vars.PGID }}'
+      PHOTOPRISM_UID: '{{ vars.PHOTOPRISM_UID }}'
+      PHOTOPRISM_HTTP_COMPRESSION: '{{ vars.PHOTOPRISM_HTTP_COMPRESSION }}'
+      PHOTOPRISM_DATABASE_USER: '{{ vars.PHOTOPRISM_DATABASE_USER }}'
+      PHOTOPRISM_ADMIN_PASSWORD: '{{ secrets.PHOTOPRISM_ADMIN_PASSWORD }}'
+      PHOTOPRISM_DATABASE_PASSWORD: '{{ secrets.PHOTOPRISM_DATABASE_PASSWORD }}'
+      HOMEPAGE_WIDGET_PASSWORD: '{{ secrets.HOMEPAGE_WIDGET_PASSWORD }}'
+      MARIADB_ROOT_PASSWORD: '{{ secrets.MARIADB_ROOT_PASSWORD }}'
+      MARIADB_DATABASE: '{{ secrets.MARIADB_DATABASE }}'
+      MARIADB_USER: '{{ secrets.MARIADB_USER }}'
+      MARIADB_PASSWORD: '{{ secrets.MARIADB_PASSWORD }}'
+dependencies:
+  database:
+    import: catalog/mariadb.yml
+    overrides:
+      name: aac-photoprism-db
+      image_tag: 12.3.1-ubi10-rc
+      volumes:
+        db:
+          target: /var/lib/mysql
+          description: Persistent storage for db
+      environment:
+        PUID: '{{ vars.PUID }}'
+        TZ: '{{ vars.TZ }}'
+        PGID: '{{ vars.PGID }}'
+vars:
+  PHOTOPRISM_DEFAULT_TLS: 'true'
+  PHOTOPRISM_AUTH_MODE: password
+  PHOTOPRISM_EXPERIMENTAL: 'true'
+  PHOTOPRISM_DATABASE_NAME: photoprism
+  PHOTOPRISM_DATABASE_SERVER: aac-photoprism-db:3306
+  PHOTOPRISM_ORIGINALS_LIMIT: '10000'
+  PHOTOPRISM_FFMPEG_ENCODER: nvidia
+  PHOTOPRISM_DATABASE_DRIVER: mariadb
+  PUID: '1000'
+  TZ: Europe/Berlin
+  PHOTOPRISM_GID: '1000'
+  PHOTOPRISM_DISABLE_TLS: 'false'
+  PHOTOPRISM_LOG_LEVEL: info
+  PHOTOPRISM_INIT: https gpu tensorflow
+  PHOTOPRISM_READONLY: 'false'
+  PHOTOPRISM_DETECT_NSFW: 'true'
+  PHOTOPRISM_ADMIN_USER: admin
+  PHOTOPRISM_SITE_URL: https://fotos.example.com
+  PHOTOPRISM_UMASK: '0000'
+  PGID: '1000'
+  PHOTOPRISM_UID: '1000'
+  PHOTOPRISM_HTTP_COMPRESSION: gzip
+  PHOTOPRISM_DATABASE_USER: photoprism

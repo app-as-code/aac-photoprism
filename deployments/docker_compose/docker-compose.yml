@@ -1,0 +1,141 @@
+services:
+  # --- Main Application Service ---
+  aac-photoprism:
+    image: "photoprism/photoprism:20220121"
+    container_name: "aac-photoprism"
+    hostname: "fotos"
+    restart: "always"
+
+
+    environment:
+      PHOTOPRISM_DEFAULT_TLS: "true"
+      PHOTOPRISM_AUTH_MODE: "password"
+      PHOTOPRISM_EXPERIMENTAL: "true"
+      PHOTOPRISM_DATABASE_NAME: "photoprism"
+      PHOTOPRISM_DATABASE_SERVER: "aac-photoprism-db:3306"
+      PHOTOPRISM_ORIGINALS_LIMIT: "10000"
+      PHOTOPRISM_FFMPEG_ENCODER: "nvidia"
+      PHOTOPRISM_DATABASE_DRIVER: "mariadb"
+      PUID: "1000"
+      TZ: "Europe/Berlin"
+      PHOTOPRISM_GID: "1000"
+      PHOTOPRISM_DISABLE_TLS: "false"
+      PHOTOPRISM_LOG_LEVEL: "info"
+      PHOTOPRISM_INIT: "https gpu tensorflow"
+      PHOTOPRISM_READONLY: "false"
+      PHOTOPRISM_DETECT_NSFW: "true"
+      PHOTOPRISM_ADMIN_USER: "admin"
+      PHOTOPRISM_SITE_URL: "https://fotos.example.com"
+      PHOTOPRISM_UMASK: "0000"
+      PGID: "1000"
+      PHOTOPRISM_UID: "1000"
+      PHOTOPRISM_HTTP_COMPRESSION: "gzip"
+      PHOTOPRISM_DATABASE_USER: "photoprism"
+      PHOTOPRISM_ADMIN_PASSWORD: "${PHOTOPRISM_ADMIN_PASSWORD:?set PHOTOPRISM_ADMIN_PASSWORD in .env (see .env.example)}"
+      PHOTOPRISM_DATABASE_PASSWORD: "${PHOTOPRISM_DATABASE_PASSWORD:?set PHOTOPRISM_DATABASE_PASSWORD in .env (see .env.example)}"
+      HOMEPAGE_WIDGET_PASSWORD: "${HOMEPAGE_WIDGET_PASSWORD:?set HOMEPAGE_WIDGET_PASSWORD in .env (see .env.example)}"
+      MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD:?set MARIADB_ROOT_PASSWORD in .env (see .env.example)}"
+      MARIADB_DATABASE: "photoprism"
+      MARIADB_USER: "photoprism"
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD:?set MARIADB_PASSWORD in .env (see .env.example)}"
+    ports:
+      - "2342:2342/tcp"
+
+    volumes:
+      - "/export/docker/aac-photoprism/storage:/photoprism/storage"
+      - "/mnt/homenas/netzlaufwerk-feser/Bibliothek/Bilder/Familien-Galerie:/photoprism/originals"
+      - "/mnt/homenas/server/photoprism/import:/photoprism/import"
+
+    networks:
+      - exposed
+      - interconnect
+      - secured
+      - stack_internal
+
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.aac-photoprism.rule: "Host(`fotos.example.com`)"
+      traefik.http.routers.aac-photoprism.entrypoints: "websecure"
+      traefik.http.routers.aac-photoprism.tls: "true"
+      traefik.http.routers.aac-photoprism.tls.certresolver: "ionos"
+      traefik.docker.network: "services-secured"
+      traefik.http.services.aac-photoprism.loadbalancer.server.port: "2342"
+      traefik.http.services.aac-photoprism.loadbalancer.server.scheme: "https"
+      traefik.http.services.aac-photoprism.loadbalancer.serverstransport: "my-insecure-transport@file"
+      auto-dns.createWildcard.aac-photoprism: "false"
+      auto-dns.customDNS.aac-photoprism: "true"
+      auto-dns.customDOMAIN.aac-photoprism: "example.com"
+      auto-dns.customHost.aac-photoprism: "fotos"
+      homepage.group: "Medien - Entertainment"
+      homepage.name: "AI-Fotos"
+      homepage.href: "https://fotos.example.com"
+      homepage.icon: "photoprism.png"
+      homepage.description: "Self-hosted Photo Management"
+
+
+    security_opt:
+    - seccomp:unconfined
+    - apparmor:unconfined
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities:
+            - gpu
+            - compute
+            - compat32
+            - graphics
+            - utility
+            - video
+    depends_on:
+      aac-photoprism-db:
+        condition: service_healthy
+
+
+  # --- Service Dependencies (Sidecars) ---
+  aac-photoprism-db:
+    image: "mariadb:12.3.1-ubi10-rc"
+    container_name: "aac-photoprism-db"
+    restart: "always"
+    
+
+    env_file:
+      - .env
+    environment:
+      PUID: "1000"
+      TZ: "Europe/Berlin"
+      PGID: "1000"
+
+
+    volumes:
+      - "/export/docker/aac-photoprism/db:/var/lib/mysql"
+
+    networks:
+      - stack_internal
+
+
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost --silent || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+
+
+networks:
+  secured:
+    name: "services-secured"
+    external: true
+  exposed:
+    name: "services-exposed"
+    external: true
+  interconnect:
+    name: "docker-default"
+    external: true
+  stack_internal:
+    name: "aac-photoprism_stack_internal"
+    driver: "bridge"
+
